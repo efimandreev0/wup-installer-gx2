@@ -269,6 +269,8 @@ void InstallWindow::InstallProcess(int pos, int total)
 					break;
 				}
 				
+				u64 startInstallTime = OSGetTime();
+
 				while(!installCompleted)
 				{
 					memset(mcpInstallInfo, 0, 0x24);
@@ -281,8 +283,32 @@ void InstallWindow::InstallProcess(int pos, int total)
 						u64 installedSize = ((u64)mcpInstallInfo[5] << 32ULL) | mcpInstallInfo[6];
 						int percent = (totalSize != 0) ? ((installedSize * 100.0f) / totalSize) : 0;
 						
-						std::string message = fmt("%0.1f / %0.1f MB (%i", installedSize / (1024.0f * 1024.0f), totalSize / (1024.0f * 1024.0f), percent);
-						message += "%)";
+						std::string message = fmt("%0.1f / %0.1f MB (%i%%)", installedSize / (1024.0f * 1024.0f), totalSize / (1024.0f * 1024.0f), percent);
+						
+						u32 elapsedMs = OSTicksToMilliseconds(OSGetTime() - startInstallTime);
+						
+						if (elapsedMs > 1000 && installedSize > 0 && totalSize > installedSize)
+						{
+							double speedBytesPerSec = ((double)installedSize / (double)elapsedMs) * 1000.0;
+							double speedMbPerSec = speedBytesPerSec / (1024.0 * 1024.0);
+							
+							u64 bytesRemaining = totalSize - installedSize;
+							
+							u32 secondsRemaining = (u32)(bytesRemaining / speedBytesPerSec);
+							
+							u32 hours = secondsRemaining / 3600;
+							u32 minutes = (secondsRemaining % 3600) / 60;
+							u32 seconds = secondsRemaining % 60;
+							
+							if (hours > 0)
+								message += fmt(" | %.1f MB/s | Time Remaining: %02d:%02d:%02d", speedMbPerSec, hours, minutes, seconds);
+							else
+								message += fmt(" | %.1f MB/s | Time Remaining: %02d:%02d", speedMbPerSec, minutes, seconds);
+						}
+						else if (elapsedMs <= 1000)
+						{
+							//message += " | ";
+						}
 						
 						messageBox->setProgress(percent);
 						messageBox->setProgressBarInfo(message);
@@ -290,7 +316,6 @@ void InstallWindow::InstallProcess(int pos, int total)
 					
 					usleep(50000);
 				}
-				
 				if(installError != 0)
 				{
 					if ((installError == 0xFFFCFFE9) && (target == USB))
